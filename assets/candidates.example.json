@@ -1,0 +1,85 @@
+{
+  "title": "C 盘清理候选清单",
+  "generatedAt": "2026-10-28 18:50",
+  "disk": { "total": 120.0, "used": 107.59, "free": 12.41 },
+  "items": [
+    {
+      "id": "A1",
+      "group": "A",
+      "name": "Windows 更新缓存",
+      "gb": 4.82,
+      "files": 3917,
+      "risk": 1,
+      "path": "C:\\Windows\\SoftwareDistribution\\Download",
+      "ext": ".cab .esd .msu",
+      "backup": "none",
+      "irreversible": false,
+      "note": "系统会重新下载。删除前先停 wuauserv 与 bits，删完恢复。"
+    },
+    {
+      "id": "A2",
+      "group": "A",
+      "name": "浏览器缓存（Edge + Chrome）",
+      "gb": 2.14,
+      "files": 18422,
+      "risk": 1,
+      "path": "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache",
+      "ext": ".cache .data_0 .data_1",
+      "backup": "none",
+      "irreversible": false,
+      "note": "只删 Cache / Code Cache / GPUCache，不动 User Data 根目录。"
+    },
+    {
+      "id": "A3",
+      "group": "A",
+      "name": "npm 与 pnpm 缓存",
+      "gb": 3.06,
+      "files": 42311,
+      "risk": 1,
+      "path": "%LOCALAPPDATA%\\npm-cache",
+      "ext": ".tgz .json",
+      "backup": "none",
+      "irreversible": false,
+      "note": "下次安装依赖会重新下载。"
+    },
+    {
+      "id": "B1",
+      "group": "B",
+      "name": "WPS 云文档本地副本",
+      "gb": 6.78,
+      "files": 1736,
+      "risk": 3,
+      "path": "C:\\Users\\X\\Documents\\WPS Cloud Files\\.22134046\\cachedata",
+      "ext": ".pdf 685 · .docx 597 · .pptx 99",
+      "backup": "copy",
+      "irreversible": false,
+      "note": "目录名叫 cachedata，实际是 1736 个真实办公文档。已备份到 D:\\WPS文档备份，差异为 0。"
+    },
+    {
+      "id": "B2",
+      "group": "B",
+      "name": "微信接收文件",
+      "gb": 8.31,
+      "files": 9244,
+      "risk": 3,
+      "path": "C:\\Users\\X\\Documents\\WeChat Files",
+      "ext": ".jpg .mp4 .docx .pdf",
+      "backup": "none",
+      "irreversible": false,
+      "note": "含聊天记录与接收文件。需确认手机端已留存或已迁移。"
+    },
+    {
+      "id": "C1",
+      "group": "C",
+      "name": "WSL 发行版虚拟磁盘",
+      "gb": 1.14,
+      "files": 1,
+      "risk": 3,
+      "path": "C:\\Users\\X\\AppData\\Local\\Packages\\CanonicalGroupLimited...\\ext4.vhdx",
+      "ext": ".vhdx",
+      "backup": "none",
+      "irreversible": true,
+      "note": "整个 Linux 文件系统。删除等于清空该发行版，无法还原。"
+    }
+  ]
+}

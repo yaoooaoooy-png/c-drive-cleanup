@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>C 盘清理 · 确认台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --line: #e2e8f0;
+    --ink: #0f172a;
+    --ink2: #475569;
+    --ink3: #94a3b8;
+    --blue: #2563eb;
+    --green: #16a34a;
+    --orange: #ea580c;
+    --red: #dc2626;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.5;
+    padding: 0 0 60px; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* 顶部标题 */
+  header { padding: 24px 0 14px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.3px; }
+  .sub { font-size: 12px; color: var(--ink3); margin-top: 3px; }
+  .sub b { color: var(--ink2); font-weight: 600; }
+  .tools { display: flex; gap: 7px; }
+  .btn-mini {
+    font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    background: #fff; border: 1px solid var(--line); color: var(--ink2);
+    padding: 6px 12px; border-radius: 7px; transition: .15s;
+  }
+  .btn-mini:hover { background: #eff6ff; border-color: #bfdbfe; color: var(--blue); }
+  .btn-mini.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-mini.primary:hover { background: #1d4ed8; color: #fff; }
+
+  /* 吸顶汇总条 */
+  .bar {
+    position: sticky; top: 0; z-index: 30;
+    background: rgba(255,255,255,.96);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--line); border-radius: 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 10px rgba(15,23,42,.05);
+  }
+  .bar-inner { display: flex; align-items: center; gap: 18px; padding: 11px 16px; flex-wrap: wrap; }
+  .bar-l { min-width: 96px; }
+  .bar-l .k { font-size: 10.5px; color: var(--ink3); }
+  .bar-l .v { font-size: 17px; font-weight: 700; letter-spacing: -.4px; font-variant-numeric: tabular-nums; color: var(--red); line-height: 1.25; }
+  .bar-m { flex: 1; min-width: 190px; }
+  .bar-track { display: flex; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .bar-track .neg { background: linear-gradient(90deg, #fca5a5, #dc2626); transition: width .3s ease; }
+  .bar-track .pos { background: repeating-linear-gradient(135deg, #16a34a, #16a34a 5px, #22c55e 5px, #22c55e 10px); transition: width .3s ease; }
+  .bar-txt { font-size: 10.5px; color: var(--ink3); margin-top: 5px; font-variant-numeric: tabular-nums; }
+  .bar-txt b { color: var(--ink2); font-weight: 600; }
+  .bar-r { display: flex; gap: 7px; }
+
+  /* 筛选行 */
+  .filters { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .seg { display: flex; background: #e8eef6; border-radius: 8px; padding: 2px; gap: 2px; }
+  .seg button {
+    font: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; border: 0; background: transparent;
+    color: var(--ink2); padding: 5px 11px; border-radius: 6px; transition: .13s; white-space: nowrap;
+  }
+  .seg button:hover { color: var(--blue); }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,.1); }
+  .seg button .n { color: var(--ink3); font-weight: 500; margin-left: 4px; }
+  .search {
+    font: inherit; font-size: 12px; padding: 6px 11px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink); flex: 1; min-width: 150px;
+  }
+  .search:focus { outline: 2px solid #bfdbfe; border-color: #93c5fd; }
+  select.sort {
+    font: inherit; font-size: 11.5px; padding: 6px 9px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink2); cursor: pointer;
+  }
+
+  /* 警告条 */
+  .warn {
+    font-size: 11.5px; border-radius: 9px; padding: 9px 13px; margin-bottom: 10px; line-height: 1.6;
+    border: 1px solid; display: none;
+  }
+  .warn.show { display: block; }
+  .warn.red { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+  .warn.orange { color: #c2410c; background: #fff7ed; border-color: #fed7aa; }
+  .warn.blue { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+  .warn.blue.show { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .warn button {
+    font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap;
+    background: #fff; border: 1px solid #bfdbfe; color: var(--blue); border-radius: 6px; padding: 4px 9px;
+  }
+
+  /* 列表 */
+  .list { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .group-h {
+    display: flex; align-items: center; gap: 9px;
+    padding: 12px 18px 8px; background: #f8fafc;
+    border-top: 1px solid var(--line);
+  }
+  .group-h:first-child { border-top: 0; }
+  .group-h .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .group-h .name { font-size: 11.5px; font-weight: 700; letter-spacing: .3px; color: var(--ink2); }
+  .group-h .amt { font-size: 10.5px; color: var(--ink3); font-variant-numeric: tabular-nums; margin-left: auto; }
+
+  .row {
+    display: grid; grid-template-columns: 40px minmax(0,1fr) 62px 78px 80px;
+    gap: 12px; align-items: center;
+    padding: 10px 18px; cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background .13s, border-color .13s;
+    user-select: none;
+  }
+  .row + .row { border-top: 1px solid #f1f5f9; }
+  .row:hover { background: #f8fafc; }
+  .row.picked { background: #fef2f2; border-left-color: var(--red); }
+  .row.picked:hover { background: #fee2e2; }
+
+  .row-id {
+    font-family: Consolas, monospace; font-size: 10.5px; font-weight: 700; color: var(--ink3);
+    background: #f1f5f9; border-radius: 5px; padding: 3px 0; text-align: center;
+  }
+  .row.picked .row-id { background: #fee2e2; color: #b91c1c; }
+  .row-main { min-width: 0; }
+  .row-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: color .13s; }
+  .row-path { font-family: Consolas, monospace; font-size: 10px; color: #a8b5c6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+  .row.picked .row-name {
+    color: #b0bccb; text-decoration: line-through;
+    text-decoration-color: #f87171; text-decoration-thickness: 1.5px;
+  }
+  .row.picked .row-path { color: #cfd8e3; }
+  .row.picked .row-name .chk { text-decoration: none; }
+  .row-risk { text-align: right; }
+  .row-size { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .row.picked .row-size { color: #c3ccd8; text-decoration: line-through; text-decoration-color: #f87171; }
+
+  /* 删除标记按钮 */
+  .mark {
+    font-size: 10.5px; font-weight: 700; text-align: center; white-space: nowrap;
+    padding: 5px 0; border-radius: 6px; border: 1px solid #e2e8f0;
+    background: #fff; color: #94a3b8; transition: .14s; letter-spacing: .2px;
+  }
+  .row:hover .mark { border-color: #fca5a5; color: var(--red); background: #fff5f5; }
+  .row.picked .mark { background: var(--red); border-color: var(--red); color: #fff; }
+  .row.picked:hover .mark { background: #b91c1c; border-color: #b91c1c; }
+
+  .risk { font-size: 9.5px; font-weight: 700; padding: 1.5px 7px; border-radius: 20px; white-space: nowrap; }
+  .r1 { background: #dcfce7; color: #15803d; }
+  .r2 { background: #dbeafe; color: #1d4ed8; }
+  .r3 { background: #ffedd5; color: #c2410c; }
+  .chk { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px; white-space: nowrap; border: 1px solid; }
+  .chk-rename, .chk-copy { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+  .chk-irrev { color: #fff; background: var(--red); border-color: var(--red); }
+
+  .empty-tip { text-align: center; padding: 56px 12px; color: var(--ink3); font-size: 12.5px; line-height: 1.9; }
+  .empty-tip b { color: var(--ink2); }
+
+  /* 首次使用提示 */
+  .hint {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 11.5px; color: #64748b; background: #fff;
+    border: 1px dashed #cbd5e1; border-radius: 9px;
+    padding: 9px 13px; margin-bottom: 10px; line-height: 1.5;
+  }
+  .hint .k { font-weight: 700; color: var(--red); white-space: nowrap; }
+  .hint .sep { color: #cbd5e1; }
+  .hint .x {
+    margin-left: auto; font: inherit; font-size: 13px; line-height: 1; border: 0; background: transparent;
+    color: #cbd5e1; cursor: pointer; padding: 2px 5px; border-radius: 5px;
+  }
+  .hint .x:hover { background: #f1f5f9; color: var(--ink3); }
+  .hint.hide { display: none; }
+
+  /* 回执 */
+  .output { display: none; margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .output.show { display: block; }
+  .output .h { font-size: 11px; color: var(--ink3); margin-bottom: 8px; }
+  .output textarea {
+    width: 100%; height: 70px; font-family: Consolas, monospace; font-size: 12px;
+    padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc;
+    color: var(--ink); resize: none; line-height: 1.65;
+  }
+  .output textarea:focus { outline: 2px solid #bfdbfe; }
+
+  .foot { font-size: 11px; color: #b6c2d1; margin-top: 18px; text-align: center; line-height: 1.8; }
+
+  /* 模态 */
+  .mask { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: none; align-items: center; justify-content: center; z-index: 60; padding: 24px; }
+  .mask.show { display: flex; }
+  .modal { background: #fff; border-radius: 14px; width: min(760px,100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(15,23,42,.25); }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .modal-head .t { font-size: 14px; font-weight: 700; }
+  .modal-head .x { font: inherit; font-size: 18px; line-height: 1; border: 0; background: transparent; color: var(--ink3); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+  .modal-head .x:hover { background: #f1f5f9; color: var(--ink); }
+  .tabs { display: flex; gap: 2px; padding: 10px 18px 0; border-bottom: 1px solid var(--line); }
+  .tabs button {
+    font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; border: 0; background: transparent;
+    color: var(--ink3); padding: 7px 12px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--blue); }
+  .modal-body { padding: 16px 18px 20px; overflow-y: auto; }
+  .pane { display: none; }
+  .pane.on { display: block; }
+  .dropfile {
+    border: 2px dashed #cbd5e1; border-radius: 10px; padding: 22px; text-align: center;
+    color: var(--ink3); font-size: 12.5px; background: #fafbfc; cursor: pointer; transition: .15s; margin-bottom: 12px;
+  }
+  .dropfile:hover, .dropfile.over { border-color: var(--blue); background: #ecf5ff; color: var(--blue); }
+  .dropfile b { color: var(--ink2); }
+  .pane textarea {
+    width: 100%; height: 190px; font-family: Consolas, monospace; font-size: 11px;
+    padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc;
+    color: var(--ink); resize: vertical; line-height: 1.55;
+  }
+  .pane textarea:focus { outline: 2px solid #bfdbfe; }
+  .modal-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .err { font-size: 11.5px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 7px; padding: 7px 10px; margin-top: 10px; display: none; }
+  .err.show { display: block; }
+  .btn {
+    font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; border-radius: 8px;
+    padding: 9px 14px; border: 1px solid var(--line); background: #fff; color: var(--ink2); transition: .15s;
+  }
+  .btn:hover { background: #f8fafc; }
+  .btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.primary:hover { background: #1d4ed8; }
+  pre.code {
+    background: #0f172a; color: #e2e8f0; font-family: Consolas, monospace; font-size: 11px;
+    padding: 13px 15px; border-radius: 9px; overflow-x: auto; line-height: 1.6; margin: 8px 0 14px;
+  }
+  .doc h4 { font-size: 12.5px; margin: 14px 0 6px; color: var(--ink); }
+  .doc h4:first-child { margin-top: 0; }
+  .doc p { font-size: 12px; color: var(--ink2); line-height: 1.75; margin-bottom: 6px; }
+  .doc table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 6px 0 12px; }
+  .doc th, .doc td { text-align: left; padding: 5px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .doc th { color: var(--ink3); font-weight: 600; font-size: 10.5px; }
+  .doc td code { font-family: Consolas, monospace; font-size: 10.5px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; color: #7c3aed; }
+  .doc td.req { color: #b91c1c; font-size: 10px; font-weight: 700; }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 0 14px; }
+    .row { grid-template-columns: 34px minmax(0,1fr) 62px 66px; padding: 10px 14px; gap: 9px; }
+    .row-risk { display: none; }
+    .row-size { font-size: 12px; }
+    .bar-inner { padding: 10px 13px; gap: 12px; }
+    .bar-l { min-width: 80px; }
+    .bar-m { order: 3; width: 100%; flex: none; }
+    .bar-r { margin-left: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <h1>清理确认台</h1>
+      <div class="sub" id="subLine">未载入清单。点「导入清单」选择 JSON，或把 JSON 文件直接拖进页面。</div>
+    </div>
+    <div class="tools">
+      <button class="btn-mini primary" id="importBtn">导入清单</button>
+      <button class="btn-mini" id="exportBtn">导出 JSON</button>
+      <button class="btn-mini" id="helpBtn">格式说明</button>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="bar-inner">
+      <div class="bar-l">
+        <div class="k" id="pickLabel">将删除</div>
+        <div class="v" id="pickGb">0.00 GB</div>
+      </div>
+      <div class="bar-m">
+        <div class="bar-track">
+          <div class="neg" id="barNeg" style="width:0%"></div>
+          <div class="pos" id="barPos" style="width:0%"></div>
+        </div>
+        <div class="bar-txt" id="barTxt"></div>
+      </div>
+      <div class="bar-r">
+        <button class="btn-mini" id="onlyPicked">只看要删的</button>
+        <button class="btn-mini" id="resetBtn">全部撤销</button>
+        <button class="btn-mini primary" id="copyBtn" disabled>生成回执</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="filters">
+    <div class="seg" id="segGroup"></div>
+    <input class="search" id="search" type="search" placeholder="搜名称或路径">
+    <select class="sort" id="sortSel">
+      <option value="size">组内按体积</option>
+      <option value="id">组内按编号</option>
+      <option value="risk">组内按风险</option>
+    </select>
+  </div>
+
+  <div class="warn blue" id="warnLastKept"></div>
+  <div class="warn red" id="warnDanger"></div>
+  <div class="warn orange" id="warnOrange"></div>
+
+  <div class="hint" id="hintBar">
+    <span class="k">点一行 = 标记删除</span>
+    <span class="sep">·</span>
+    <span>再点一次 = 撤销</span>
+    <button class="x" id="hintClose" title="不再提示">&times;</button>
+  </div>
+
+  <div class="list" id="listBody">
+    <div class="empty-tip">还没有清单。<br><b>导入 JSON</b> 后这里会列出全部候选项目。</div>
+  </div>
+
+  <div class="output" id="outputBox">
+    <div class="h">回执 · 直接复制这段发给我</div>
+    <textarea id="outputText" readonly spellcheck="false"></textarea>
+  </div>
+
+  <div class="foot">点一行标记删除，再点一次撤销 · 标记保存在本浏览器，刷新不丢</div>
+</div>
+
+<!-- 模态 -->
+<div class="mask" id="mask">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="t" id="modalTitle">导入清单</div>
+      <button class="x" id="modalClose">×</button>
+    </div>
+    <div class="tabs">
+      <button id="tabImport" class="on">导入</button>
+      <button id="tabDoc">JSON 格式</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="pane on" id="paneImport">
+        <div class="dropfile" id="dropfile">拖 JSON 文件到这里，或 <b>点击选择文件</b></div>
+        <textarea id="pasteArea" spellcheck="false" placeholder="也可以把 JSON 内容直接粘贴到这里"></textarea>
+        <div class="err" id="errBox"></div>
+        <div class="modal-foot">
+          <button class="btn" id="cancelImport">取消</button>
+          <button class="btn primary" id="okImport">载入</button>
+        </div>
+      </div>
+
+      <div class="pane doc" id="paneDoc">
+        <p>页面只认一个 JSON 对象。除 <code>items</code> 外都可省略。</p>
+        <table>
+          <thead><tr><th>字段</th><th>说明</th><th>必填</th></tr></thead>
+          <tbody>
+            <tr><td><code>title</code></td><td>清单标题</td><td></td></tr>
+            <tr><td><code>generatedAt</code></td><td>生成日期，如 2026-10-28</td><td></td></tr>
+            <tr><td><code>disk</code></td><td><code>{ total, used, free }</code>，单位 GB；不填则汇总条只显示已选量</td><td></td></tr>
+            <tr><td><code>items[]</code></td><td>候选项目数组</td><td class="req">必填</td></tr>
+            <tr><td><code>items[].id</code></td><td>编号，如 A1。回执用它，必须唯一</td><td class="req">必填</td></tr>
+            <tr><td><code>items[].name</code></td><td>显示名</td><td class="req">必填</td></tr>
+            <tr><td><code>items[].gb</code></td><td>体积，GB，数字</td><td class="req">必填</td></tr>
+            <tr><td><code>items[].path</code></td><td>完整路径</td><td></td></tr>
+            <tr><td><code>items[].group</code></td><td>分组字母，如 A / B / C。不填取 id 首个字母</td><td></td></tr>
+            <tr><td><code>items[].risk</code></td><td>1 低 / 2 中 / 3 高</td><td></td></tr>
+            <tr><td><code>items[].files</code></td><td>文件数，仅显示</td><td></td></tr>
+            <tr><td><code>items[].ext</code></td><td>扩展名统计结论</td><td></td></tr>
+            <tr><td><code>items[].backup</code></td><td><code>none</code> / <code>rename</code> / <code>copy</code>，回滚点状态</td><td></td></tr>
+            <tr><td><code>items[].irreversible</code></td><td><code>true</code> 表示删除后无法恢复，行内标红</td><td></td></tr>
+            <tr><td><code>items[].note</code></td><td>备注，悬停显示</td><td></td></tr>
+          </tbody>
+        </table>
+        <h4>最小示例</h4>
+        <pre class="code">{
+  "title": "C 盘清理 · 第 3 轮",
+  "generatedAt": "2026-10-28",
+  "disk": { "total": 120, "used": 107.59, "free": 12.41 },
+  "items": [
+    {
+      "id": "A1",
+      "name": "Windows 更新缓存",
+      "gb": 9.78,
+      "path": "C:\\\\Windows\\\\SoftwareDistribution\\\\Download",
+      "group": "A",
+      "risk": 1,
+      "files": 531619,
+      "ext": "缓存文件为主，无用户文档",
+      "backup": "none"
+    }
+  ]
+}</pre>
+        <p>JSON 里的反斜杠要写两个。最省事的做法：先导入，改完再导出。</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var LS_POOL = 'cleanup-confirm-pool-v1';
+  var LS_KEPT = 'cleanup-confirm-kept-v1';
+  var LS_DATA = 'cleanup-confirm-data-v1';
+  var LS_HINT = 'cleanup-confirm-hint-seen-v1';
+
+  var RISK_TXT = { 1: '低风险', 2: '中风险', 3: '高风险' };
+  var GROUP_COLOR = { A: '#16a34a', B: '#2563eb', C: '#ea580c' };
+
+  var SAMPLE = {
+    title: '示例清单 · 演示用，不是真实待删项',
+    generatedAt: '2026-10-28',
+    disk: { total: 120, used: 107.59, free: 12.41 },
+    items: [
+      { id: 'A1', name: 'Windows 更新缓存', gb: 9.78, files: 531619, risk: 1,
+        path: 'C:\\Windows\\SoftwareDistribution\\Download',
+        ext: '缓存文件为主，无用户文档', backup: 'none' },
+      { id: 'A2', name: '用户临时文件', gb: 0.87, files: 2630, risk: 1,
+        path: 'C:\\Users\\X\\AppData\\Local\\Temp',
+        ext: '.tmp / .log 为主', backup: 'none' },
+      { id: 'A3', name: 'Windows 升级残留', gb: 0.46, files: 1589, risk: 1,
+        path: 'C:\\$WINDOWS.~BT', ext: '升级暂存目录', backup: 'none' },
+      { id: 'B1', name: 'WPS 云文档缓存', gb: 8.08, files: 1821, risk: 2,
+        path: 'C:\\Users\\X\\Documents\\WPS Cloud Files\\.22134046\\cachedata',
+        ext: 'pdf 685 / docx 597 / pptx 99 —— 含用户文档', backup: 'copy',
+        note: '已备份到 D:\\WPS文档备份_20261018，差异 0' },
+      { id: 'B2', name: 'WPS 插件池', gb: 1.23, files: 22602, risk: 2,
+        path: 'C:\\Users\\X\\AppData\\Roaming\\kingsoft\\wps\\addons\\pool',
+        ext: 'js / json / zip 插件包', backup: 'none' },
+      { id: 'C4', name: 'WSL 子系统', gb: 1.14, files: 646, risk: 3,
+        path: 'C:\\Program Files\\WSL', ext: '二进制安装目录',
+        backup: 'none', irreversible: true, note: '删除后需重新安装' },
+      { id: 'C7', name: '荣耀电脑管家 + SDK', gb: 4.81, files: 29436, risk: 3,
+        path: 'C:\\Program Files\\HONOR + C:\\ProgramData\\HonorSDK',
+        ext: '程序文件', backup: 'none', irreversible: true }
+    ]
+  };
+
+  var state = {
+    data: null,
+    picked: {},
+    filter: 'ALL',
+    query: '',
+    sort: 'size',
+    onlyPicked: false,
+    lastKept: []
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var listBody = $('listBody');
+
+  function gb(n) { return (Number(n) || 0).toFixed(2) + ' GB'; }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function read(k) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
+
+  function byId(id) {
+    if (!state.data) return null;
+    var arr = state.data.items;
+    for (var i = 0; i < arr.length; i++) if (arr[i].id === id) return arr[i];
+    return null;
+  }
+
+  function pickedIds() {
+    return (state.data ? state.data.items : [])
+      .filter(function (it) { return state.picked[it.id]; })
+      .map(function (it) { return it.id; });
+  }
+
+  /* ---------- 数据规范化 ---------- */
+
+  function normalize(raw) {
+    if (!raw || !Array.isArray(raw.items)) throw new Error('缺少 items 数组');
+    var seen = {};
+    var items = raw.items.map(function (it, i) {
+      var id = String(it.id || ('X' + (i + 1))).trim();
+      if (seen[id]) throw new Error('编号重复：' + id);
+      seen[id] = 1;
+      return {
+        id: id,
+        name: String(it.name || '(未命名)'),
+        gb: Number(it.gb) || 0,
+        path: String(it.path || ''),
+        group: String(it.group || id.charAt(0)).toUpperCase(),
+        risk: Number(it.risk) === 3 ? 3 : (Number(it.risk) === 2 ? 2 : 1),
+        files: Number(it.files) || 0,
+        ext: it.ext ? String(it.ext) : '',
+        backup: (it.backup === 'rename' || it.backup === 'copy') ? it.backup : 'none',
+        irreversible: it.irreversible === true,
+        note: it.note ? String(it.note) : ''
+      };
+    });
+    if (!items.length) throw new Error('items 为空');
+
+    var disk = null;
+    if (raw.disk && Number(raw.disk.total) > 0) {
+      var total = Number(raw.disk.total);
+      var used = Number(raw.disk.used) || 0;
+      disk = {
+        total: total,
+        used: used,
+        free: Number(raw.disk.free) >= 0 ? Number(raw.disk.free) : (total - used)
+      };
+    }
+    return {
+      title: String(raw.title || '清理清单'),
+      generatedAt: String(raw.generatedAt || ''),
+      disk: disk,
+      items: items
+    };
+  }
+
+  function loadData(raw, keepPicked) {
+    var data;
+    try { data = normalize(raw); } catch (e) { return e.message; }
+
+    state.data = data;
+    if (!keepPicked) state.picked = {};
+
+    // 剔除已不存在的 id
+    var valid = {};
+    data.items.forEach(function (it) { valid[it.id] = 1; });
+    Object.keys(state.picked).forEach(function (id) { if (!valid[id]) delete state.picked[id]; });
+
+    state.lastKept = (read(LS_KEPT) || []).filter(function (id) { return valid[id]; });
+    state.filter = 'ALL';
+    state.query = '';
+    state.onlyPicked = false;
+
+    render();
+    persist();
+    store(LS_DATA, data);
+    return null;
+  }
+
+  /* ---------- 渲染 ---------- */
+
+  function visibleItems() {
+    var q = state.query.trim().toLowerCase();
+    return (state.data ? state.data.items : []).filter(function (it) {
+      if (state.onlyPicked && !state.picked[it.id]) return false;
+      if (state.filter !== 'ALL' && it.group !== state.filter) return false;
+      if (!q) return true;
+      return (it.name + ' ' + it.path + ' ' + it.id + ' ' + it.ext).toLowerCase().indexOf(q) > -1;
+    });
+  }
+
+  function sortFn(a, b) {
+    if (state.sort === 'risk') return b.risk - a.risk || b.gb - a.gb;
+    if (state.sort === 'id') return a.id.localeCompare(b.id, 'en', { numeric: true });
+    return b.gb - a.gb;
+  }
+
+  function renderHeader() {
+    if (!state.data) return;
+    var d = state.data;
+    var parts = ['<b>' + esc(d.title) + '</b>'];
+    if (d.generatedAt) parts.push(d.generatedAt);
+    var sum = d.items.reduce(function (s, i) { return s + i.gb; }, 0);
+    parts.push(d.items.length + ' 项 · ' + gb(sum));
+    $('subLine').innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  }
+
+  function renderSeg() {
+    var seg = $('segGroup');
+    if (!state.data) { seg.innerHTML = ''; return; }
+    var counts = {};
+    state.data.items.forEach(function (it) { counts[it.group] = (counts[it.group] || 0) + 1; });
+    var keys = Object.keys(counts).sort();
+    var html = '<button data-g="ALL" class="' + (state.filter === 'ALL' ? 'on' : '') + '">全部<span class="n">' +
+      state.data.items.length + '</span></button>';
+    keys.forEach(function (g) {
+      html += '<button data-g="' + esc(g) + '" class="' + (state.filter === g ? 'on' : '') + '">' + esc(g) +
+        '<span class="n">' + counts[g] + '</span></button>';
+    });
+    seg.innerHTML = html;
+  }
+
+  function renderList() {
+    if (!state.data) {
+      listBody.innerHTML = '<div class="empty-tip">还没有清单。<br><b>导入 JSON</b> 后这里会列出全部候选项目。</div>';
+      return;
+    }
+
+    var items = visibleItems();
+    if (!items.length) {
+      listBody.innerHTML = '<div class="empty-tip">' +
+        (state.onlyPicked ? '还没有标记任何项目。<br>点一行即标记为删除。' : '当前筛选下没有项目。') + '</div>';
+      return;
+    }
+
+    // 先按分组归桶，再组内排序 —— 组头不会重复
+    var buckets = {};
+    items.forEach(function (it) {
+      (buckets[it.group] = buckets[it.group] || []).push(it);
+    });
+    var keys = Object.keys(buckets).sort();
+
+    var html = '';
+    keys.forEach(function (g) {
+      var list = buckets[g].slice().sort(sortFn);
+      var sub = list.reduce(function (s, x) { return s + x.gb; }, 0);
+      html += '<div class="group-h"><span class="dot" style="background:' +
+        (GROUP_COLOR[g] || '#94a3b8') + '"></span><span class="name">' + esc(g) + ' 类</span>' +
+        '<span class="amt">' + list.length + ' 项 · ' + gb(sub) + '</span></div>';
+
+      list.forEach(function (it) {
+        var on = !!state.picked[it.id];
+        html += '<div class="row' + (on ? ' picked' : '') + '" data-id="' + esc(it.id) + '"' +
+          (it.note ? ' title="' + esc(it.note) + '"' : '') + '>' +
+          '<div class="row-id">' + esc(it.id) + '</div>' +
+          '<div class="row-main">' +
+            '<div class="row-name">' + esc(it.name) + chkBadge(it) + '</div>' +
+            '<div class="row-path">' + esc(it.path || it.ext || '') + '</div>' +
+          '</div>' +
+          '<div class="row-risk"><span class="risk r' + it.risk + '">' + RISK_TXT[it.risk] + '</span></div>' +
+          '<div class="row-size">' + gb(it.gb) + '</div>' +
+          '<div class="mark">' + (on ? '撤销' : '删除') + '</div>' +
+        '</div>';
+      });
+    });
+    listBody.innerHTML = html;
+  }
+
+  function chkBadge(it) {
+    if (it.irreversible) return '<span class="chk chk-irrev">不可恢复</span>';
+    if (it.backup === 'copy') return '<span class="chk chk-copy">已备份</span>';
+    if (it.backup === 'rename') return '<span class="chk chk-rename">可改名回滚</span>';
+    return '';
+  }
+
+  function renderBar() {
+    var ids = pickedIds();
+    var sum = ids.reduce(function (s, id) { var it = byId(id); return s + (it ? it.gb : 0); }, 0);
+    $('pickGb').textContent = gb(sum);
+    $('pickLabel').textContent = '将删除 ' + ids.length + ' 项';
+
+    var t = $('barTxt');
+    if (state.data && state.data.disk) {
+      var d = state.data.disk;
+      var after = Math.max(0, d.used - sum);
+      $('barNeg').style.width = Math.min(100, (after / d.total) * 100) + '%';
+      $('barPos').style.width = Math.min(100, (sum / d.total) * 100) + '%';
+      t.innerHTML = '已用 <b>' + d.used.toFixed(2) + ' → ' + after.toFixed(2) + ' GB</b>' +
+        ' &nbsp;·&nbsp; 剩余 <b>' + d.free.toFixed(2) + ' → ' +
+        (d.free + sum).toFixed(2) + ' GB</b>';
+    } else {
+      $('barNeg').style.width = '0%';
+      $('barPos').style.width = '0%';
+      t.textContent = ids.length ? '已选 ' + gb(sum) : '未提供磁盘容量信息';
+    }
+
+    $('copyBtn').disabled = ids.length === 0;
+    if (!ids.length) $('outputBox').classList.remove('show');
+  }
+
+  function renderWarns() {
+    var ids = pickedIds();
+
+    var danger = ids.filter(function (id) {
+      var it = byId(id);
+      return it && (it.irreversible || (it.risk === 3 && it.backup === 'none'));
+    });
+    var el = $('warnDanger');
+    if (danger.length) {
+      el.className = 'warn red show';
+      el.textContent = '已标记删除的高风险项：' + danger.join('、') +
+        '。其中含不可恢复或未建回滚点的目录，删除后无法还原，确认这些不是你要保留的东西。';
+    } else { el.className = 'warn red'; }
+
+    var soft = ids.filter(function (id) {
+      var it = byId(id);
+      return it && it.risk === 2 && it.backup === 'none' && !it.irreversible;
+    });
+    var el2 = $('warnOrange');
+    if (soft.length) {
+      el2.className = 'warn orange show';
+      el2.textContent = '中风险且未备份：' + soft.join('、') + '。建议先改名成 .deltmp 或复制到 D 盘再删。';
+    } else { el2.className = 'warn orange'; }
+
+    // 上次保留项提醒
+    var el3 = $('warnLastKept');
+    var remind = state.lastKept.filter(function (id) { return state.picked[id]; });
+    if (remind.length) {
+      el3.className = 'warn blue show';
+      el3.innerHTML = '<span>上次你保留了 ' + remind.join('、') + '，本轮被标记删除。</span>' +
+        '<button id="applyKept">撤回这几项</button>';
+      var b = $('applyKept');
+      if (b) b.onclick = function (e) {
+        e.stopPropagation();
+        remind.forEach(function (id) { delete state.picked[id]; });
+        sync();
+      };
+    } else { el3.className = 'warn blue'; }
+  }
+
+  function render() {
+    renderHeader();
+    renderSeg();
+    renderList();
+    renderBar();
+    renderWarns();
+  }
+
+  function persist() {
+    store(LS_POOL, { title: state.data ? state.data.title : '', picked: Object.keys(state.picked) });
+  }
+
+  function sync() {
+    renderList();
+    renderBar();
+    renderWarns();
+    persist();
+  }
+
+  /* ---------- 交互 ---------- */
+
+  listBody.addEventListener('click', function (e) {
+    var row = e.target.closest('.row');
+    if (!row || !state.data) return;
+    var id = row.dataset.id;
+    if (state.picked[id]) delete state.picked[id];
+    else state.picked[id] = true;
+    sync();
+  });
+
+  $('segGroup').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-g]');
+    if (!b) return;
+    state.filter = b.dataset.g;
+    renderSeg();
+    renderList();
+  });
+
+  $('search').addEventListener('input', function (e) {
+    state.query = e.target.value;
+    renderList();
+  });
+
+  $('sortSel').addEventListener('change', function (e) {
+    state.sort = e.target.value;
+    renderList();
+  });
+
+  $('onlyPicked').addEventListener('click', function () {
+    state.onlyPicked = !state.onlyPicked;
+    this.classList.toggle('primary', state.onlyPicked);
+    renderList();
+  });
+
+  // 首次使用提示，关掉后不再出现
+  if (read(LS_HINT)) $('hintBar').classList.add('hide');
+  $('hintClose').addEventListener('click', function (e) {
+    e.stopPropagation();
+    $('hintBar').classList.add('hide');
+    store(LS_HINT, true);
+  });
+
+  $('resetBtn').addEventListener('click', function () {
+    if (!pickedIds().length) return;
+    state.picked = {};
+    sync();
+  });
+
+  $('copyBtn').addEventListener('click', function () {
+    var ids = pickedIds();
+    if (!ids.length) return;
+    var keep = state.data.items.filter(function (it) { return !state.picked[it.id]; });
+    var sum = ids.reduce(function (s, id) { var it = byId(id); return s + (it ? it.gb : 0); }, 0);
+    var keepSum = keep.reduce(function (s, it) { return s + it.gb; }, 0);
+
+    var lines = [
+      '删：' + ids.join(' ') + '（' + ids.length + ' 项 / ' + sum.toFixed(2) + ' GB）',
+      '留：' + keep.map(function (it) { return it.id; }).join(' ') +
+        '（' + keep.length + ' 项 / ' + keepSum.toFixed(2) + ' GB）'
+    ];
+    var high = ids.filter(function (id) { var it = byId(id); return it && it.risk === 3; });
+    if (high.length) lines.push('风险：' + high.join(' ') + ' 属高风险项，已单独确认');
+
+    var text = lines.join('\n');
+    var ta = $('outputText');
+    ta.value = text;
+    $('outputBox').classList.add('show');
+
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {});
+    }
+    this.textContent = '已复制';
+    var self = this;
+    setTimeout(function () { self.textContent = '生成回执'; }, 2000);
+
+    store(LS_KEPT, keep.map(function (it) { return it.id; }));
+  });
+
+  /* ---------- 导入导出 ---------- */
+
+  var mask = $('mask');
+
+  function switchTab(name) {
+    var isImport = name === 'import';
+    $('tabImport').className = isImport ? 'on' : '';
+    $('tabDoc').className = isImport ? '' : 'on';
+    $('paneImport').className = 'pane' + (isImport ? ' on' : '');
+    $('paneDoc').className = 'pane doc' + (isImport ? '' : ' on');
+    $('modalTitle').textContent = isImport ? '导入清单' : 'JSON 格式说明';
+  }
+
+  function openModal(tab) {
+    mask.classList.add('show');
+    $('errBox').className = 'err';
+    switchTab(tab || 'import');
+  }
+  function closeModal() { mask.classList.remove('show'); }
+
+  function showErr(msg) {
+    $('errBox').textContent = msg;
+    $('errBox').className = 'err show';
+  }
+
+  function applyRaw(text) {
+    var raw;
+    try { raw = JSON.parse(text); } catch (e) { showErr('JSON 解析失败：' + e.message); return; }
+    var err = loadData(raw, false);
+    if (err) { showErr(err); return; }
+    $('pasteArea').value = '';
+    closeModal();
+  }
+
+  $('importBtn').addEventListener('click', function () { openModal('import'); });
+  $('helpBtn').addEventListener('click', function () { openModal('doc'); });
+  $('modalClose').addEventListener('click', closeModal);
+  $('cancelImport').addEventListener('click', closeModal);
+  $('tabImport').addEventListener('click', function () { switchTab('import'); });
+  $('tabDoc').addEventListener('click', function () { switchTab('doc'); });
+  mask.addEventListener('click', function (e) { if (e.target === mask) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+  $('okImport').addEventListener('click', function () {
+    var text = $('pasteArea').value.trim();
+    if (!text) { showErr('粘贴框为空。请选择文件或粘贴 JSON 内容。'); return; }
+    applyRaw(text);
+  });
+
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.json,application/json';
+  fileInput.style.display = 'none';
+  document.body.appendChild(fileInput);
+
+  function readFile(f) {
+    var r = new FileReader();
+    r.onload = function () { applyRaw(String(r.result)); };
+    r.onerror = function () { showErr('文件读取失败'); };
+    r.readAsText(f, 'utf-8');
+  }
+
+  $('dropfile').addEventListener('click', function () { fileInput.click(); });
+  fileInput.addEventListener('change', function () {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    readFile(f);
+    fileInput.value = '';
+  });
+
+  var df = $('dropfile');
+  df.addEventListener('dragover', function (e) { e.preventDefault(); df.classList.add('over'); });
+  df.addEventListener('dragleave', function () { df.classList.remove('over'); });
+  df.addEventListener('drop', function (e) {
+    e.preventDefault();
+    df.classList.remove('over');
+    var f = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) readFile(f);
+  });
+
+  // 把 JSON 文件直接拖进页面任意位置
+  document.addEventListener('dragover', function (e) {
+    if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types, 'Files') > -1) e.preventDefault();
+  });
+  document.addEventListener('drop', function (e) {
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!f) return;
+    e.preventDefault();
+    if (!mask.classList.contains('show')) openModal('import');
+    readFile(f);
+  });
+
+  $('exportBtn').addEventListener('click', function () {
+    if (!state.data) { openModal('import'); return; }
+    var out = {
+      title: state.data.title,
+      generatedAt: state.data.generatedAt,
+      disk: state.data.disk,
+      items: state.data.items.map(function (it) {
+        return {
+          id: it.id, name: it.name, gb: it.gb, path: it.path, group: it.group,
+          risk: it.risk, files: it.files, ext: it.ext, backup: it.backup,
+          irreversible: it.irreversible, note: it.note
+        };
+      })
+    };
+    var blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cleanup-candidates-' + (state.data.generatedAt || 'export') + '.json';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
+  });
+
+  /* ---------- 启动 ---------- */
+
+  var saved = read(LS_POOL);
+  if (saved && Array.isArray(saved.picked)) {
+    saved.picked.forEach(function (id) { state.picked[id] = true; });
+  }
+
+  var cached = read(LS_DATA);
+  if (!cached || loadData(cached, true)) loadData(SAMPLE, true);
+})();
+</script>
+</body>
+</html>
