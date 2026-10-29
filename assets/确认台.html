@@ -407,6 +407,8 @@
   var RISK_TXT = { 1: '低风险', 2: '中风险', 3: '高风险' };
   var GROUP_COLOR = { A: '#16a34a', B: '#2563eb', C: '#ea580c' };
 
+  var EMBEDDED = null; /* EMIT_CANDIDATES_HERE */
+
   var SAMPLE = {
     title: '示例清单 · 演示用，不是真实待删项',
     generatedAt: '2026-10-28',
@@ -922,7 +924,13 @@
   }
 
   var cached = read(LS_DATA);
-  if (!cached || loadData(cached, true)) loadData(SAMPLE, true);
+
+  if (EMBEDDED) {
+    // 扫描器生成的页面：数据已经内嵌，优先使用
+    loadData(EMBEDDED, true);
+  } else if (!cached || loadData(cached, true)) {
+    loadData(SAMPLE, true);
+  }
 })();
 </script>
 </body>
