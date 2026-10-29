@@ -43,10 +43,34 @@
 
 ```bash
 git clone https://github.com/yaoooaoooy-png/c-drive-cleanup.git \
-  ~/.workbuddy/skills/c-drive-cleanup
+  ~/.workbuddy/skills/C盘清理
 ```
 
-Windows 路径为 `C:\Users\<你>\.workbuddy\skills\c-drive-cleanup`。装好后新开会话，说「清理C盘」或「这个目录能不能删」即会加载。
+Windows 路径为 `C:\Users\<你>\.workbuddy\skills\C盘清理`。装好后新开会话，说「清理C盘」或「这个目录能不能删」即会加载。
+
+技能名是 `C盘清理`，仓库名是 `c-drive-cleanup`。两者不同：仓库名受 Git 命名限制，技能名面向中文使用场景。
+
+### 跟随上游自动更新
+
+技能目录本身是 Git 仓库，更新只需一条命令：
+
+```bash
+git -C ~/.workbuddy/skills/C盘清理 pull --ff-only
+```
+
+要让系统定期自动拉取，把仓库放在独立目录、再用镜像同步，可以避免 `.git` 混进技能扫描范围：
+
+```powershell
+$src  = "$env:USERPROFILE\.workbuddy\skill-src\c-drive-cleanup"
+$dest = "$env:USERPROFILE\.workbuddy\skills\C盘清理"
+
+git clone https://github.com/yaoooaoooy-png/c-drive-cleanup.git $src
+robocopy $src $dest /MIR /XD ".git" /NFL /NDL /NJH /NJS /NP
+```
+
+之后每次更新，`git -C $src pull --ff-only` 加一次 `robocopy` 即可。脚本 `scripts/sync.ps1` 已封装这两步，挂到 Windows 计划任务（登录时 + 每小时）就实现自动同步。
+
+**注意：改内容要改仓库，不要直接改技能目录。** 技能目录是镜像，下次同步会被覆盖。
 
 ### 只使用脚本
 
@@ -99,7 +123,8 @@ c-drive-cleanup/
 ├── scripts/
 │   ├── scan_candidates.py        扫盘出清单 + 生成内嵌数据的确认页（只读）
 │   ├── survey.py                 单个目录的体检与风险判定
-│   └── recycle_list.py           回收站取证（解析 $I 元数据）
+│   ├── recycle_list.py           回收站取证（解析 $I 元数据）
+│   └── sync.ps1                  从 GitHub 拉取并镜像到技能目录
 └── assets/
     ├── 确认台.html               单文件确认页：导入清单、逐项标记、生成回执
     └── candidates.example.json   清单数据格式
