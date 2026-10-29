@@ -68,9 +68,24 @@ git clone https://github.com/yaoooaoooy-png/c-drive-cleanup.git $src
 robocopy $src $dest /MIR /XD ".git" /NFL /NDL /NJH /NJS /NP
 ```
 
-之后每次更新，`git -C $src pull --ff-only` 加一次 `robocopy` 即可。脚本 `scripts/sync.ps1` 已封装这两步，挂到 Windows 计划任务（登录时 + 每小时）就实现自动同步。
+之后每次更新，`git -C $src pull --ff-only` 加一次 `robocopy` 即可。脚本 `scripts/sync.ps1` 已封装这两步：先 `fetch`（HTTPS 失败自动回退 SSH），再 `reset`，最后镜像。
+
+挂到 Windows 计划任务（登录时 + 每小时）即可无人值守：
+
+```powershell
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+  -Argument '-NoProfile -ExecutionPolicy Bypass -File "' + $src + '\scripts\sync.ps1" -Quiet'
+$t1 = New-ScheduledTaskTrigger -AtLogOn
+$t2 = New-ScheduledTaskTrigger -Once -At (Get-Date) `
+        -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Days 3650)
+Register-ScheduledTask -TaskName 'SkillSync-CDriveCleanup' -Action $action -Trigger @($t1, $t2) -Force
+```
+
+如果所在环境的计划任务被安全策略禁用，改用宿主自己的定时任务，定时执行同一条 `sync.ps1`。效果一样。
 
 **注意：改内容要改仓库，不要直接改技能目录。** 技能目录是镜像，下次同步会被覆盖。
+
+如果只要「用的时候是最新」，可以不做定时：`SKILL.md` 的快速路径第 0 步就是跑 `sync.ps1`，每次使用前拉一次。
 
 ### 只使用脚本
 
