@@ -14,6 +14,23 @@ agent_created: true
 
 ## 快速路径：用户说「清理C盘」时先做这一步
 
+### 第 0 步 · 同步到最新版
+
+如果技能装在 WorkBuddy 技能目录下，并且存在本地仓库副本，先拉一次更新：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sync.ps1
+```
+
+这条命令从 GitHub 拉最新版 main，再镜像到 `%USERPROFILE%\.workbuddy\skills\C盘清理`。
+
+- 本地仓库副本默认在 `%USERPROFILE%\.workbuddy\skill-src\c-drive-cleanup`。
+- 首次安装时没有副本，先在克隆目录里建一次：`git clone https://github.com/yaoooaoooy-png/c-drive-cleanup.git %USERPROFILE%\.workbuddy\skill-src\c-drive-cleanup`。
+- 拉取失败不影响使用：脚本会报错并保留现有版本，继续走第 1 步。
+- 更新只在下次会话生效。当前会话已加载的流程不变。
+
+### 第 1 步 · 扫描
+
 不要先手工翻目录。跑一条命令，直接得到候选清单和一个可点的确认页：
 
 ```bash
@@ -227,5 +244,6 @@ WinSxS 的目录大小含硬链接，真实占用远小于显示值。用 `DISM 
 - `scripts/scan_candidates.py` —— 一条命令出清单与确认页，只读
 - `scripts/survey.py` —— 单个目录的体检与风险判定
 - `scripts/recycle_list.py` —— 回收站取证
+- `scripts/sync.ps1` —— 从 GitHub 拉最新版并镜像到技能目录
 - `assets/确认台.html` —— 确认页模板；`scan_candidates.py` 往里注入数据
 - `assets/candidates.example.json` —— 手工编写清单时的数据格式
