@@ -1,25 +1,22 @@
-<#
-  把本技能从 GitHub 同步到 WorkBuddy 技能目录。
+﻿<#
+  从 GitHub 同步本技能到 WorkBuddy 技能目录。
 
-  用法（在仓库根目录或其任意子目录）：
+  用法：
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sync.ps1
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sync.ps1 -Quiet
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\sync.ps1 -SkipFetch   # 只做镜像
 
-  行为：
-    1. git fetch + reset --hard origin/main，把仓库对齐到远程
-    2. robocopy /MIR 镜像到 %USERPROFILE%\.workbuddy\skills\C盘清理
-    3. 结果写日志 %USERPROFILE%\.workbuddy\skill-src\sync.log
-
-  安全约束：
-    - 目标目录的父级必须是 .workbuddy\skills，否则拒绝执行
-    - .git 不参与镜像
-    - 同一时刻只允许一个实例运行
+  1. fetch 远程 main（先 HTTPS 后 SSH，任一成功即可）
+  2. reset --hard 到 FETCH_HEAD
+  3. robocopy /MIR 镜像到 %USERPROFILE%\.workbuddy\skills\C盘清理
+  4. 结果写 %USERPROFILE%\.workbuddy\skill-src\sync.log
 #>
-param([switch]$Quiet)
+param(
+  [switch]$Quiet,
+  [switch]$SkipFetch
+)
 
 $ErrorActionPreference = 'Stop'
-
-function Say($msg) { if (-not $Quiet) { Write-Host $msg } }
 
 $repo   = Split-Path -Parent $PSScriptRoot
 $root   = Join-Path $env:USERPROFILE '.workbuddy'
@@ -29,61 +26,88 @@ $logDir = Join-Path $root 'skill-src'
 $log    = Join-Path $logDir 'sync.log'
 $lock   = Join-Path $logDir 'sync.lock'
 
+function Say($m) { if (-not $Quiet) { Write-Host $m } }
+function Short($h) { if ($h) { $h.Substring(0, 7) } else { 'unknown' } }
+function Stamp { Get-Date -Format 'yyyy-MM-dd HH:mm:ss' }
+
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 
-# 安全闸：目标路径必须在 .workbuddy\skills 之下
-$destFull  = [System.IO.Path]::GetFullPath($dest)
+# 安全闸：目标必须在技能目录之下
+$destFull   = [System.IO.Path]::GetFullPath($dest)
 $skillsFull = [System.IO.Path]::GetFullPath($skills)
 if (-not $destFull.StartsWith($skillsFull + [System.IO.Path]::DirectorySeparatorChar)) {
-    throw "目标路径不在技能目录下，已中止：$destFull"
+  throw "目标不在技能目录下，已中止：$destFull"
 }
-if (-not (Test-Path (Join-Path $repo '.git'))) { throw "不是 Git 仓库：$repo" }
+if (-not $SkipFetch -and -not (Test-Path (Join-Path $repo '.git'))) {
+  throw "不是 Git 仓库：$repo"
+}
+
+function WriteLog($t) {
+  Add-Content -Path $log -Value $t -Encoding UTF8
+  if ((Get-Item $log).Length -gt 200KB) {
+    $tail = Get-Content $log -Tail 200 -Encoding UTF8
+    Set-Content -Path $log -Value $tail -Encoding UTF8
+  }
+}
 
 # 单实例锁
-try {
-    $fh = [System.IO.File]::Open($lock, 'OpenOrCreate', 'ReadWrite', 'None')
-} catch {
-    Say '另一个同步实例正在运行，本次跳过。'
-    exit 0
-}
-
-function WriteLog($text) {
-    Add-Content -Path $log -Value $text -Encoding UTF8
-    if ((Get-Item $log).Length -gt 200KB) {
-        $tail = Get-Content $log -Tail 200
-        Set-Content -Path $log -Value $tail -Encoding UTF8
-    }
-}
+try { $fh = [System.IO.File]::Open($lock, 'OpenOrCreate', 'ReadWrite', 'None') }
+catch { Say '另一个同步实例正在运行，本次跳过。'; exit 0 }
 
 try {
-    $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+  $before = if ($SkipFetch) { $null } else { (& git -C $repo rev-parse HEAD 2>$null) }
 
-    $before = (& git -C $repo rev-parse HEAD 2>$null)
-    & git -C $repo fetch --quiet origin main 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'git fetch 失败，检查网络或远程地址' }
-    & git -C $repo reset --hard --quiet origin/main 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'git reset 失败' }
-    $after = (& git -C $repo rev-parse HEAD 2>$null)
-
-    robocopy $repo $destFull /MIR /XD ".git" /NFL /NDL /NJH /NJS /NP | Out-Null
-    $rc = $LASTEXITCODE
-    if ($rc -ge 8) { throw "robocopy 失败，退出码 $rc" }
-
-    $short = { param($h) if ($h) { $h.Substring(0, 7) } else { 'unknown' } }
-    if ($before -ne $after) {
-        $line = "$stamp  $(& $short $before) -> $(& $short $after)  已更新"
-    } else {
-        $line = "$stamp  $(& $short $after)  无变化"
+  if (-not $SkipFetch) {
+    # SSH 私钥列表：非标准文件名（如 id_ed25519_github）也要能用
+    $keyArgs = @()
+    $sshDir = Join-Path $env:USERPROFILE '.ssh'
+    if (Test-Path $sshDir) {
+      $keys = Get-ChildItem $sshDir -Filter 'id_*' -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -notlike '*.pub' }
+      foreach ($k in $keys) { $keyArgs += "-i `"$($k.FullName)`"" }
     }
-    WriteLog $line
-    Say $line
-    Say "目标：$destFull"
-    exit 0
+    $sshCmd = "ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new " + ($keyArgs -join ' ')
+
+    $remotes = @(
+      @{ Url = 'https://github.com/yaoooaoooy-png/c-drive-cleanup.git'; Opt = @() },
+      @{ Url = 'git@github.com:yaoooaoooy-png/c-drive-cleanup.git'; Opt = @('-c', "core.sshCommand=$sshCmd") }
+    )
+    if ($keyArgs.Count -eq 0) { $remotes = @($remotes[0]) }
+
+    $ok = $false
+    $fails = @()
+    foreach ($r in $remotes) {
+      $opt = $r.Opt
+      & git -C $repo -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=25 @opt fetch --quiet --no-tags $r.Url main 2>&1 | Out-Null
+      if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+      $fails += $r.Url
+    }
+    if (-not $ok) { throw ('fetch 失败，两个通道都不可用：' + ($fails -join ' / ')) }
+
+    & git -C $repo reset --hard --quiet FETCH_HEAD 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'reset --hard 失败' }
+  }
+
+  $after = (& git -C $repo rev-parse HEAD 2>$null)
+
+  robocopy $repo $destFull /MIR /XD ".git" /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "robocopy 失败，退出码 $LASTEXITCODE" }
+
+  if ($SkipFetch) {
+    $line = "$(Stamp)  $(Short $after)  仅镜像（未拉取）"
+  } elseif ($before -ne $after) {
+    $line = "$(Stamp)  $(Short $before) -> $(Short $after)  已更新"
+  } else {
+    $line = "$(Stamp)  $(Short $after)  无变化"
+  }
+  WriteLog $line
+  Say $line
+  Say "目标：$destFull"
+  exit 0
 } catch {
-    WriteLog "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  失败  $($_.Exception.Message)"
-    Say "同步失败：$($_.Exception.Message)"
-    exit 1
+  WriteLog "$(Stamp)  失败  $($_.Exception.Message)"
+  Say "同步失败：$($_.Exception.Message)"
+  exit 1
 } finally {
-    $fh.Close()
-    $fh.Dispose()
+  if ($fh) { $fh.Close(); $fh.Dispose() }
 }
